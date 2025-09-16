@@ -81,3 +81,4 @@ To ensure the viewer can load all your messages and media correctly, you need to
 
 -   **NEVER** share your `api_id`, `api_hash`, or the `.session` file that is generated. The `.gitignore` file is configured to prevent this file from being uploaded to GitHub by accident.
 -   Use this tool responsibly and be mindful of Telegram's Terms of Service.
+
