@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Telethon session file - VERY IMPORTANT
+# This file contains your login session and must NOT be shared.
+*.session
+*.session-journal
+
+# Downloaded channel data
+# This folder contains personal data and large media files.
+downloads/
+
+# Environment variables
+.env
