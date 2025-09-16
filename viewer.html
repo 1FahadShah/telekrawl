@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Telegram Krawler Viewer</title>
+    <style>
+      :root {
+        --tg-bg-color: #18222d;
+        --tg-sidebar-bg: #212d3b;
+        --tg-chat-bg: #0e1621;
+        --tg-msg-out-bg: #405263;
+        --tg-msg-in-bg: #2b3846;
+        --tg-text-color: #ffffff;
+        --tg-secondary-text-color: #a3b0be;
+        --tg-link-color: #5593c5;
+        --tg-border-color: #2a3644;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: var(--tg-bg-color);
+        color: var(--tg-text-color);
+        overflow: hidden;
+        display: flex;
+        height: 100vh;
+      }
+
+      /* Prevents background scroll when lightbox is open */
+      body.lightbox-open {
+        overflow: hidden;
+      }
+
+      .sidebar {
+        width: 320px;
+        background-color: var(--tg-sidebar-bg);
+        border-right: 1px solid var(--tg-border-color);
+        display: flex;
+        flex-direction: column;
+      }
+      .sidebar-header {
+        padding: 15px 20px;
+        font-size: 1.2em;
+        font-weight: 600;
+        border-bottom: 1px solid var(--tg-border-color);
+      }
+      .channel-list {
+        flex-grow: 1;
+        overflow-y: auto;
+      }
+      .channel-item {
+        padding: 15px 20px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--tg-border-color);
+        transition: background-color 0.2s ease;
+      }
+      .channel-item:hover {
+        background-color: var(--tg-msg-out-bg);
+      }
+      .channel-item.active {
+        background-color: var(--tg-link-color);
+      }
+
+      .chat-container {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--tg-chat-bg);
+      }
+      .chat-header {
+        padding: 15px 20px;
+        background-color: var(--tg-sidebar-bg);
+        font-weight: 600;
+        border-bottom: 1px solid var(--tg-border-color);
+      }
+      .messages {
+        flex-grow: 1;
+        padding: 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .message-bubble {
+        max-width: 70%;
+        padding: 10px 15px;
+        border-radius: 20px;
+        margin-bottom: 15px;
+        background-color: var(--tg-msg-in-bg);
+        align-self: flex-start;
+        word-wrap: break-word;
+      }
+      .message-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+      .sender {
+        font-weight: bold;
+        color: var(--tg-link-color);
+        font-size: 0.9em;
+      }
+      .timestamp {
+        font-size: 0.75em;
+        color: var(--tg-secondary-text-color);
+        margin-left: 10px;
+      }
+      .message-text {
+        line-height: 1.5;
+        margin-top: 5px;
+      }
+
+      .media-collage-grid {
+        margin-top: 10px;
+        display: grid;
+        gap: 3px;
+        border-radius: 15px;
+        overflow: hidden;
+        max-width: 450px;
+      }
+      .media-collage-grid img,
+      .media-collage-grid video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        cursor: pointer;
+      }
+
+      .item-count-2 {
+        grid-template-columns: 1fr 1fr;
+        aspect-ratio: 2 / 1;
+      }
+      .item-count-3 {
+        grid-template-columns: 1fr 1fr;
+        aspect-ratio: 1.5 / 1;
+      }
+      .item-count-3 > :first-child {
+        grid-column: 1;
+        grid-row: 1 / 3;
+      }
+      .item-count-4 {
+        grid-template-columns: 1fr 1fr;
+        aspect-ratio: 1 / 1;
+      }
+      .item-count-5 {
+        grid-template-columns: 1fr 1fr;
+        aspect-ratio: 1.2 / 1;
+      }
+      .item-count-5 > :nth-child(1) {
+        grid-column: 1 / 3;
+      }
+      .item-count-6,
+      .item-count-7,
+      .item-count-8,
+      .item-count-9,
+      .item-count-10 {
+        grid-template-columns: 1fr 1fr 1fr;
+        aspect-ratio: 1 / 1;
+      }
+
+      .placeholder {
+        margin: auto;
+        text-align: center;
+        color: var(--tg-secondary-text-color);
+      }
+
+      /* --- NEW STYLES FOR LIGHTBOX CAROUSEL --- */
+      .lightbox {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.85);
+        display: none; /* Hidden by default */
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+      .lightbox-content {
+        position: relative;
+        max-width: 90vw;
+        max-height: 90vh;
+      }
+      .lightbox-content img,
+      .lightbox-content video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .lightbox-close,
+      .lightbox-prev,
+      .lightbox-next {
+        position: absolute;
+        color: white;
+        font-size: 3em;
+        font-weight: bold;
+        cursor: pointer;
+        user-select: none;
+        transition: color 0.2s;
+      }
+      .lightbox-close:hover,
+      .lightbox-prev:hover,
+      .lightbox-next:hover {
+        color: var(--tg-secondary-text-color);
+      }
+      .lightbox-close {
+        top: 20px;
+        right: 35px;
+      }
+      .lightbox-prev {
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .lightbox-next {
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .lightbox-counter {
+        position: absolute;
+        top: 25px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: 1.2em;
+      }
+      /* --- END OF NEW STYLES --- */
+    </style>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="sidebar-header">Channels</div>
+      <div id="channel-list" class="channel-list"></div>
+    </aside>
+
+    <main class="chat-container">
+      <header id="chat-header" class="chat-header">
+        Select a channel to view messages
+      </header>
+      <div id="message-container" class="messages">
+        <div class="placeholder">
+          <h2>Welcome to the Telegram Krawler Viewer</h2>
+          <p>Click on a channel in the left sidebar to begin.</p>
+        </div>
+      </div>
+    </main>
+
+    <div id="lightbox" class="lightbox">
+      <span id="lightbox-close" class="lightbox-close">&times;</span>
+      <div id="lightbox-prev" class="lightbox-prev">&#10094;</div>
+      <div id="lightbox-next" class="lightbox-next">&#10095;</div>
+      <div id="lightbox-counter" class="lightbox-counter"></div>
+      <div id="lightbox-content-wrapper" class="lightbox-content"></div>
+    </div>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // Existing element variables
+        const channelList = document.getElementById("channel-list");
+        const chatHeader = document.getElementById("chat-header");
+        const messageContainer = document.getElementById("message-container");
+
+        // --- NEW LIGHTBOX VARIABLES ---
+        const lightbox = document.getElementById("lightbox");
+        const lightboxContent = document.getElementById(
+          "lightbox-content-wrapper"
+        );
+        const lightboxCounter = document.getElementById("lightbox-counter");
+        let currentMediaGroup = [];
+        let currentIndex = 0;
+        let currentChannelFolder = "";
+        // --- END OF NEW LIGHTBOX VARIABLES ---
+
+        const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "bmp"];
+        const VIDEO_EXTENSIONS = ["mp4", "mov", "webm", "ogg", "mkv"];
+
+        function formatDate(dateString) {
+          if (!dateString) return "";
+          const d = new Date(dateString);
+          return d.toLocaleString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          });
+        }
+        function groupMediaMessages(messages) {
+          if (!messages.length) return [];
+          const grouped = [];
+          for (let i = 0; i < messages.length; i++) {
+            const c = messages[i],
+              p = messages[i - 1];
+            if (
+              p &&
+              c.sender_id === p.sender_id &&
+              c.media &&
+              p.media &&
+              new Date(c.date) - new Date(p.date) < 2000
+            ) {
+              const last = grouped[grouped.length - 1];
+              last.groupedMedia.push(c.media);
+              if (c.text) last.text = (last.text || "") + "\n" + c.text;
+            } else {
+              const n = { ...c };
+              n.groupedMedia = n.media ? [n.media] : [];
+              grouped.push(n);
+            }
+          }
+          return grouped;
+        }
+
+        // --- NEW LIGHTBOX FUNCTIONS ---
+        function showMedia(index) {
+          currentIndex = index;
+          lightboxContent.innerHTML = ""; // Clear previous content
+
+          const mediaFile = currentMediaGroup[index];
+          const mediaPath = `downloads/${currentChannelFolder}/${mediaFile}`;
+          const extension = mediaFile.split(".").pop().toLowerCase();
+
+          let mediaElement;
+          if (IMAGE_EXTENSIONS.includes(extension)) {
+            mediaElement = document.createElement("img");
+            mediaElement.src = mediaPath;
+          } else if (VIDEO_EXTENSIONS.includes(extension)) {
+            mediaElement = document.createElement("video");
+            mediaElement.src = mediaPath;
+            mediaElement.controls = true;
+            mediaElement.autoplay = true;
+          }
+
+          if (mediaElement) {
+            lightboxContent.appendChild(mediaElement);
+          }
+
+          lightboxCounter.textContent = `${currentIndex + 1} / ${
+            currentMediaGroup.length
+          }`;
+        }
+
+        function openLightbox(mediaGroup, startIndex, folder) {
+          currentMediaGroup = mediaGroup;
+          currentChannelFolder = folder;
+          lightbox.style.display = "flex";
+          document.body.classList.add("lightbox-open");
+          showMedia(startIndex);
+        }
+
+        function closeLightbox() {
+          lightbox.style.display = "none";
+          document.body.classList.remove("lightbox-open");
+          lightboxContent.innerHTML = ""; // Stop video from playing in background
+        }
+
+        function showNext() {
+          if (currentIndex < currentMediaGroup.length - 1) {
+            showMedia(currentIndex + 1);
+          }
+        }
+        function showPrev() {
+          if (currentIndex > 0) {
+            showMedia(currentIndex - 1);
+          }
+        }
+
+        // Event listeners for lightbox controls
+        document
+          .getElementById("lightbox-close")
+          .addEventListener("click", closeLightbox);
+        lightbox.addEventListener("click", (e) => {
+          if (e.target === lightbox) closeLightbox();
+        }); // Close on background click
+        document
+          .getElementById("lightbox-next")
+          .addEventListener("click", showNext);
+        document
+          .getElementById("lightbox-prev")
+          .addEventListener("click", showPrev);
+
+        // Keyboard navigation
+        document.addEventListener("keydown", (e) => {
+          if (lightbox.style.display === "flex") {
+            if (e.key === "Escape") closeLightbox();
+            if (e.key === "ArrowRight") showNext();
+            if (e.key === "ArrowLeft") showPrev();
+          }
+        });
+        // --- END OF NEW LIGHTBOX FUNCTIONS ---
+
+        async function loadMessages(folder, title) {
+          currentChannelFolder = folder; // Store current folder for lightbox
+          chatHeader.textContent = title;
+          messageContainer.innerHTML =
+            '<div class="placeholder"><h2>Loading messages...</h2></div>';
+          document.querySelectorAll(".channel-item").forEach((item) => {
+            item.classList.remove("active");
+            if (item.dataset.folder === folder) item.classList.add("active");
+          });
+
+          try {
+            const response = await fetch(`downloads/${folder}/messages.json`);
+            if (!response.ok)
+              throw new Error(`HTTP error! status: ${response.status}`);
+            const messages = groupMediaMessages(await response.json());
+            messageContainer.innerHTML = "";
+
+            if (messages.length === 0) {
+              messageContainer.innerHTML =
+                '<div class="placeholder"><p>No messages found.</p></div>';
+              return;
+            }
+
+            messages.forEach((msg) => {
+              const bubble = document.createElement("div");
+              bubble.className = "message-bubble";
+              const infoDiv = document.createElement("div");
+              infoDiv.className = "message-info";
+              const senderSpan = document.createElement("span");
+              senderSpan.className = "sender";
+              senderSpan.textContent = `Sender: ${msg.sender_id || "Unknown"}`;
+              const timeSpan = document.createElement("span");
+              timeSpan.className = "timestamp";
+              timeSpan.textContent = formatDate(msg.date);
+              infoDiv.append(senderSpan, timeSpan);
+              bubble.appendChild(infoDiv);
+
+              if (msg.text) {
+                const textDiv = document.createElement("div");
+                textDiv.className = "message-text";
+                textDiv.innerHTML = msg.text.replace(/\n/g, "<br>");
+                bubble.appendChild(textDiv);
+              }
+
+              if (msg.groupedMedia && msg.groupedMedia.length > 0) {
+                const collageDiv = document.createElement("div");
+                collageDiv.className = "media-collage-grid";
+                if (msg.groupedMedia.length <= 10)
+                  collageDiv.classList.add(
+                    `item-count-${msg.groupedMedia.length}`
+                  );
+
+                msg.groupedMedia.forEach((mediaFile, index) => {
+                  const mediaPath = `downloads/${folder}/${mediaFile}`;
+                  const extension = mediaFile.split(".").pop().toLowerCase();
+                  let mediaThumb;
+
+                  if (IMAGE_EXTENSIONS.includes(extension)) {
+                    mediaThumb = document.createElement("img");
+                    mediaThumb.src = mediaPath;
+                  } else if (VIDEO_EXTENSIONS.includes(extension)) {
+                    mediaThumb = document.createElement("video");
+                    mediaThumb.src = mediaPath;
+                  }
+
+                  if (mediaThumb) {
+                    // MODIFIED: Add click listener to open lightbox
+                    mediaThumb.addEventListener("click", () =>
+                      openLightbox(msg.groupedMedia, index, folder)
+                    );
+                    collageDiv.appendChild(mediaThumb);
+                  }
+                });
+                bubble.appendChild(collageDiv);
+              }
+              messageContainer.appendChild(bubble);
+            });
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+          } catch (error) {
+            console.error("Error loading messages:", error);
+            messageContainer.innerHTML = `<div class="placeholder"><h2>Error</h2><p>Could not load messages.json.</p><p><i>${error}</i></p></div>`;
+          }
+        }
+
+        async function loadChannels() {
+          try {
+            const response = await fetch("downloads/channels.json");
+            if (!response.ok)
+              throw new Error(`HTTP error! status: ${response.status}`);
+            const channels = await response.json();
+            channelList.innerHTML = "";
+            channels.forEach((channel) => {
+              const div = document.createElement("div");
+              div.className = "channel-item";
+              div.textContent = channel.title;
+              div.dataset.folder = channel.folder;
+              div.dataset.title = channel.title;
+              div.addEventListener("click", () =>
+                loadMessages(channel.folder, channel.title)
+              );
+              channelList.appendChild(div);
+            });
+          } catch (error) {
+            console.error("Error loading channels.json:", error);
+            channelList.innerHTML = `<div style="padding: 20px; color: #ff8a8a;">Could not load channels.json. <br>Please run krawler.py first.<br><br><i>${error}</i></div>`;
+          }
+        }
+
+        loadChannels();
+      });
+    </script>
+  </body>
+</html>
